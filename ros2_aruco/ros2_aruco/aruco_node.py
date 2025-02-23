@@ -97,7 +97,8 @@ class ArucoNode(rclpy.node.Node):
         self.get_logger().info(f"Marker size: {self.marker_size}")
 
         dictionary_id_name = (
-            self.get_parameter("aruco_dictionary_id").get_parameter_value().string_value
+            self.get_parameter(
+                "aruco_dictionary_id").get_parameter_value().string_value
         )
         self.get_logger().info(f"Marker type: {dictionary_id_name}")
 
@@ -107,12 +108,14 @@ class ArucoNode(rclpy.node.Node):
         self.get_logger().info(f"Image topic: {image_topic}")
 
         info_topic = (
-            self.get_parameter("camera_info_topic").get_parameter_value().string_value
+            self.get_parameter(
+                "camera_info_topic").get_parameter_value().string_value
         )
         self.get_logger().info(f"Image info topic: {info_topic}")
 
         self.camera_frame = (
-            self.get_parameter("camera_frame").get_parameter_value().string_value
+            self.get_parameter(
+                "camera_frame").get_parameter_value().string_value
         )
 
         # Make sure we have a valid dictionary id:
@@ -124,8 +127,10 @@ class ArucoNode(rclpy.node.Node):
             self.get_logger().error(
                 "bad aruco_dictionary_id: {}".format(dictionary_id_name)
             )
-            options = "\n".join([s for s in dir(cv2.aruco) if s.startswith("DICT")])
+            options = "\n".join(
+                [s for s in dir(cv2.aruco) if s.startswith("DICT")])
             self.get_logger().error("valid options: {}".format(options))
+            raise AttributeError
 
         # Set up subscriptions
         self.info_sub = self.create_subscription(
@@ -138,15 +143,19 @@ class ArucoNode(rclpy.node.Node):
 
         # Set up publishers
         self.poses_pub = self.create_publisher(PoseArray, "aruco_poses", 10)
-        self.markers_pub = self.create_publisher(ArucoMarkers, "aruco_markers", 10)
+        self.markers_pub = self.create_publisher(ArucoMarkers, "aruco_markers",
+                                                 10)
 
         # Set up fields for camera parameters
         self.info_msg = None
         self.intrinsic_mat = None
         self.distortion = None
 
-        self.aruco_dictionary = cv2.aruco.Dictionary_get(dictionary_id)
-        self.aruco_parameters = cv2.aruco.DetectorParameters_create()
+        self.aruco_dictionary = cv2.aruco.getPredefinedDictionary(dictionary_id)
+        self.aruco_parameters = cv2.aruco.DetectorParameters()
+        self.aruco_detector = cv2.aruco.ArucoDetector(
+            dictionary=self.aruco_dictionary,
+            detectorParams=self.aruco_parameters)
         self.bridge = CvBridge()
 
     def info_callback(self, info_msg):
@@ -174,17 +183,18 @@ class ArucoNode(rclpy.node.Node):
         markers.header.stamp = img_msg.header.stamp
         pose_array.header.stamp = img_msg.header.stamp
 
-        corners, marker_ids, rejected = cv2.aruco.detectMarkers(
-            cv_image, self.aruco_dictionary, parameters=self.aruco_parameters
-        )
+        corners, marker_ids, rejected = self.aruco_detector.detectMarkers(
+            cv_image)
         if marker_ids is not None:
             if cv2.__version__ > "4.0.0":
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                    corners, self.marker_size, self.intrinsic_mat, self.distortion
+                    corners, self.marker_size, self.intrinsic_mat,
+                    self.distortion
                 )
             else:
                 rvecs, tvecs = cv2.aruco.estimatePoseSingleMarkers(
-                    corners, self.marker_size, self.intrinsic_mat, self.distortion
+                    corners, self.marker_size, self.intrinsic_mat,
+                    self.distortion
                 )
             for i, marker_id in enumerate(marker_ids):
                 pose = Pose()
