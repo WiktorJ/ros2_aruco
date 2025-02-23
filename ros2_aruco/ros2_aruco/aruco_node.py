@@ -206,7 +206,7 @@ class ArucoNode(rclpy.node.Node):
                 pose.position.z = tvec[2][0]
 
                 rot_matrix = np.eye(4)
-                rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvec[0]))[0]
+                rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvec))[0]
                 quat = tf_transformations.quaternion_from_atrix(rot_matrix)
 
                 pose.orientation.x = quat[0]
