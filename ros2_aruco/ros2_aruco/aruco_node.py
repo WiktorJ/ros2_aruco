@@ -186,24 +186,23 @@ class ArucoNode(rclpy.node.Node):
         corners, marker_ids, rejected = self.aruco_detector.detectMarkers(
             cv_image)
         if marker_ids is not None:
-            if cv2.__version__ > "4.0.0":
-                rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                    corners, self.marker_size, self.intrinsic_mat,
-                    self.distortion
-                )
-            else:
-                rvecs, tvecs = cv2.aruco.estimatePoseSingleMarkers(
-                    corners, self.marker_size, self.intrinsic_mat,
-                    self.distortion
-                )
-            for i, marker_id in enumerate(marker_ids):
+            obj_ponts = np.array([[-self.marker_size/ 2, -self.marker_size / 2, 0],
+                                  [-self.marker_size / 2, -self.marker_size / 2, 0],
+                                  [-self.marker_size / 2, --self.marker_size / 2, 0],
+                                  [--self.marker_size / 2, --self.marker_size / 2, 0],
+                                  ])
+            for i, corner in enumerate(corners):
+                valid, rvec, tvec = cv2.solvePnP(objectPoints=obj_ponts,
+                                                 imagePoints=corner,
+                                                 cameraMatrix=self.intrinsic_mat,
+                                                 distCoeffs=self.distortion)
                 pose = Pose()
-                pose.position.x = tvecs[i][0][0]
-                pose.position.y = tvecs[i][0][1]
-                pose.position.z = tvecs[i][0][2]
+                pose.position.x = tvec[0][0]
+                pose.position.y = tvec[0][1]
+                pose.position.z = tvec[0][2]
 
                 rot_matrix = np.eye(4)
-                rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvecs[i][0]))[0]
+                rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvec[0]))[0]
                 quat = tf_transformations.quaternion_from_matrix(rot_matrix)
 
                 pose.orientation.x = quat[0]
@@ -213,7 +212,7 @@ class ArucoNode(rclpy.node.Node):
 
                 pose_array.poses.append(pose)
                 markers.poses.append(pose)
-                markers.marker_ids.append(marker_id[0])
+                markers.marker_ids.append(marker_ids[i])
 
             self.poses_pub.publish(pose_array)
             self.markers_pub.publish(markers)
