@@ -197,13 +197,17 @@ class ArucoNode(rclpy.node.Node):
                                                  cameraMatrix=self.intrinsic_mat,
                                                  distCoeffs=self.distortion)
                 pose = Pose()
+                # pose.position.x = tvec[0][0]
+                # pose.position.y = tvec[0][1]
+                # pose.position.z = tvec[0][2]
+
                 pose.position.x = tvec[0][0]
-                pose.position.y = tvec[0][1]
-                pose.position.z = tvec[0][2]
+                pose.position.y = tvec[1][0]
+                pose.position.z = tvec[2][0]
 
                 rot_matrix = np.eye(4)
                 rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvec[0]))[0]
-                quat = tf_transformations.quaternion_from_matrix(rot_matrix)
+                quat = tf_transformations.quaternion_from_atrix(rot_matrix)
 
                 pose.orientation.x = quat[0]
                 pose.orientation.y = quat[1]
@@ -212,7 +216,8 @@ class ArucoNode(rclpy.node.Node):
 
                 pose_array.poses.append(pose)
                 markers.poses.append(pose)
-                markers.marker_ids.append(marker_ids[i])
+                # TODO: Should it be [i][0] or [0][i]
+                markers.marker_ids.append(marker_ids[i][0])
 
             self.poses_pub.publish(pose_array)
             self.markers_pub.publish(markers)
