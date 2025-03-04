@@ -186,10 +186,10 @@ class ArucoNode(rclpy.node.Node):
         corners, marker_ids, rejected = self.aruco_detector.detectMarkers(
             cv_image)
         if marker_ids is not None:
-            obj_ponts = np.array([[-self.marker_size/ 2, -self.marker_size / 2, 0],
+            obj_ponts = np.array([[-self.marker_size/ 2, self.marker_size / 2, 0],
+                                  [self.marker_size / 2, self.marker_size / 2, 0],
+                                  [self.marker_size / 2, -self.marker_size / 2, 0],
                                   [-self.marker_size / 2, -self.marker_size / 2, 0],
-                                  [-self.marker_size / 2, --self.marker_size / 2, 0],
-                                  [--self.marker_size / 2, --self.marker_size / 2, 0],
                                   ])
             for i, corner in enumerate(corners):
                 valid, rvec, tvec = cv2.solvePnP(objectPoints=obj_ponts,
