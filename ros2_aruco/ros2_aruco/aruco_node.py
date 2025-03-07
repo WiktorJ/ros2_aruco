@@ -195,7 +195,9 @@ class ArucoNode(rclpy.node.Node):
                 valid, rvec, tvec = cv2.solvePnP(objectPoints=obj_ponts,
                                                  imagePoints=corner,
                                                  cameraMatrix=self.intrinsic_mat,
-                                                 distCoeffs=self.distortion)
+                                                 distCoeffs=self.distortion,
+                                                 useExtrinsicGuess=False,
+                                                 flags=cv2.SOLVEPNP_IPPE_SQUARE)
                 pose = Pose()
                 # pose.position.x = tvec[0][0]
                 # pose.position.y = tvec[0][1]
