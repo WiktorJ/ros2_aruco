@@ -90,6 +90,14 @@ class ArucoNode(rclpy.node.Node):
                 description="Camera optical frame to use.",
             ),
         )
+        self.declare_parameter(
+            name="flip_z_axis",
+            value=False,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_BOOL,
+                description="Flip z axis of the marker pose.",
+            ),
+        )
 
         self.marker_size = (
             self.get_parameter("marker_size").get_parameter_value().double_value
@@ -117,6 +125,11 @@ class ArucoNode(rclpy.node.Node):
             self.get_parameter(
                 "camera_frame").get_parameter_value().string_value
         )
+        self.flip_z_axis = (
+            self.get_parameter(
+                "flip_z_axis").get_parameter_value().bool_value
+        )
+        self.get_logger().info(f"Flip z axis: {self.flip_z_axis}")
 
         # Make sure we have a valid dictionary id:
         try:
@@ -157,6 +170,8 @@ class ArucoNode(rclpy.node.Node):
             dictionary=self.aruco_dictionary,
             detectorParams=self.aruco_parameters)
         self.bridge = CvBridge()
+        self.z_180_rotation_matrix = np.array(
+            [[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     def info_callback(self, info_msg):
         self.info_msg = info_msg
@@ -186,11 +201,12 @@ class ArucoNode(rclpy.node.Node):
         corners, marker_ids, rejected = self.aruco_detector.detectMarkers(
             cv_image)
         if marker_ids is not None:
-            obj_ponts = np.array([[-self.marker_size/ 2, self.marker_size / 2, 0],
-                                  [self.marker_size / 2, self.marker_size / 2, 0],
-                                  [self.marker_size / 2, -self.marker_size / 2, 0],
-                                  [-self.marker_size / 2, -self.marker_size / 2, 0],
-                                  ])
+            obj_ponts = np.array(
+                [[-self.marker_size / 2, self.marker_size / 2, 0],
+                 [self.marker_size / 2, self.marker_size / 2, 0],
+                 [self.marker_size / 2, -self.marker_size / 2, 0],
+                 [-self.marker_size / 2, -self.marker_size / 2, 0],
+                 ])
             for i, corner in enumerate(corners):
                 valid, rvec, tvec = cv2.solvePnP(objectPoints=obj_ponts,
                                                  imagePoints=corner,
@@ -209,6 +225,9 @@ class ArucoNode(rclpy.node.Node):
 
                 rot_matrix = np.eye(4)
                 rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvec))[0]
+                if self.flip_z_axis:
+                    rot_matrix = np.dot(rot_matrix, self.z_180_rotation_matrix)
+
                 quat = tf_transformations.quaternion_from_matrix(rot_matrix)
 
                 pose.orientation.x = quat[0]
