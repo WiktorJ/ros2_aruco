@@ -98,6 +98,14 @@ class ArucoNode(rclpy.node.Node):
                 description="Flip z axis of the marker pose.",
             ),
         )
+        self.declare_parameter(
+            name="flip_x_axis",
+            value=False,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_BOOL,
+                description="Flip x axis of the marker pose.",
+            ),
+        )
 
         self.marker_size = (
             self.get_parameter("marker_size").get_parameter_value().double_value
@@ -130,6 +138,12 @@ class ArucoNode(rclpy.node.Node):
                 "flip_z_axis").get_parameter_value().bool_value
         )
         self.get_logger().info(f"Flip z axis: {self.flip_z_axis}")
+
+        self.flip_x_axis = (
+            self.get_parameter(
+                "flip_x_axis").get_parameter_value().bool_value
+        )
+        self.get_logger().info(f"Flip x axis: {self.flip_x_axis}")
 
         # Make sure we have a valid dictionary id:
         try:
@@ -172,6 +186,8 @@ class ArucoNode(rclpy.node.Node):
         self.bridge = CvBridge()
         self.z_180_rotation_matrix = np.array(
             [[-1, 0, 0, 0], [0, -1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+        self.x_180_rotation_matrix = np.array(
+            [[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
 
     def info_callback(self, info_msg):
         self.info_msg = info_msg
@@ -227,6 +243,9 @@ class ArucoNode(rclpy.node.Node):
                 rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvec))[0]
                 if self.flip_z_axis:
                     rot_matrix = np.dot(rot_matrix, self.z_180_rotation_matrix)
+
+                if self.flip_x_axis:
+                    rot_matrix = np.dot(rot_matrix, self.x_180_rotation_matrix)
 
                 quat = tf_transformations.quaternion_from_matrix(rot_matrix)
 
