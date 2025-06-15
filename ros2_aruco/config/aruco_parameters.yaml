@@ -2,8 +2,8 @@
   ros__parameters:
     marker_size: 0.055
     aruco_dictionary_id: DICT_5X5_250
-    image_topic: /image_raw
-    camera_info_topic: /camera_info
+    image_topic: /camera/camera/color/image_raw
+    camera_info_topic: /camera/camera/color/camera_info
 
 /aruco_board_node:
   ros__parameters:
@@ -11,8 +11,8 @@
     board_type: 'aruco'
 
     # Topics
-    image_topic: /image_raw
-    camera_info_topic: /camera_info
+    image_topic: /camera/camera/color/image_raw
+    camera_info_topic: /camera/camera/color/camera_info
     camera_frame: "" # empty uses frame from camera_info
 
     # Publish the board image with markers and pose detected
