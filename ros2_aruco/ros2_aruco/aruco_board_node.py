@@ -186,6 +186,7 @@ class ArucoBoardNode(rclpy.node.Node):
             raise AttributeError
 
         self.aruco_dictionary = cv2.aruco.getPredefinedDictionary(dictionary_id)
+        self.aruco_parameters = cv2.aruco.DetectorParameters()
 
         # Create board
         if self.board_type == "aruco":
@@ -208,6 +209,9 @@ class ArucoBoardNode(rclpy.node.Node):
                 markerLength=marker_length,
                 markerSeparation=marker_separation,
                 dictionary=self.aruco_dictionary,
+            )
+            self.detector = cv2.aruco.ArucoDetector(
+                dictionary=self.aruco_dictionary, detectorParams=self.aruco_parameters
             )
         elif self.board_type == "charuco":
             squares_x = (
@@ -232,6 +236,9 @@ class ArucoBoardNode(rclpy.node.Node):
                 markerLength=marker_length,
                 dictionary=self.aruco_dictionary,
             )
+            self.detector = cv2.aruco.CharucoDetector(
+                board=self.board, detectorParams=self.aruco_parameters
+            )
         else:
             self.get_logger().error(f"Unknown board type: {self.board_type}")
             raise ValueError("board_type must be 'aruco' or 'charuco'")
@@ -252,10 +259,6 @@ class ArucoBoardNode(rclpy.node.Node):
         self.intrinsic_mat = None
         self.distortion = None
 
-        self.aruco_parameters = cv2.aruco.DetectorParameters()
-        self.aruco_detector = cv2.aruco.ArucoDetector(
-            dictionary=self.aruco_dictionary, detectorParams=self.aruco_parameters
-        )
         self.bridge = CvBridge()
 
     def info_callback(self, info_msg):
@@ -271,61 +274,59 @@ class ArucoBoardNode(rclpy.node.Node):
             return
 
         cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="mono8")
-        corners, marker_ids, rejected = self.aruco_detector.detectMarkers(cv_image)
+        
+        rvec = None
+        tvec = None
 
-        if marker_ids is not None:
-            ret = 0
-            rvec = None
-            tvec = None
-            if self.board_type == "aruco":
-                # Estimate pose of the board
-                ret, rvec, tvec = cv2.aruco.estimatePoseBoard(
-                    corners=corners,
-                    ids=marker_ids,
-                    board=self.board,
-                    cameraMatrix=self.intrinsic_mat,
-                    distCoeffs=self.distortion,
-                )
-            elif self.board_type == "charuco":
-                # Interpolate charuco corners
-                ret_charuco, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
-                    markerCorners=corners,
-                    markerIds=marker_ids,
-                    image=cv_image,
-                    board=self.board,
-                )
-                if ret_charuco > 0:
-                    # Estimate pose of the charuco board
-                    ret, rvec, tvec = cv2.aruco.estimatePoseCharucoBoard(
-                        charucoCorners=charuco_corners,
-                        charucoIds=charuco_ids,
-                        board=self.board,
+        if self.board_type == "aruco":
+            corners, marker_ids, rejected = self.detector.detectMarkers(cv_image)
+            if marker_ids is not None:
+                obj_points, img_points = self.board.matchImagePoints(corners, marker_ids)
+                if obj_points is not None and img_points is not None and len(obj_points) >= 4:
+                    success, rvec, tvec = cv2.solvePnP(
+                        objectPoints=obj_points,
+                        imagePoints=img_points,
                         cameraMatrix=self.intrinsic_mat,
                         distCoeffs=self.distortion,
                     )
+                    if not success:
+                        rvec, tvec = None, None
 
-            if rvec is not None and tvec is not None and ret > 0:
-                pose_stamped = PoseStamped()
-                if self.camera_frame == "":
-                    pose_stamped.header.frame_id = self.info_msg.header.frame_id
-                else:
-                    pose_stamped.header.frame_id = self.camera_frame
-                pose_stamped.header.stamp = img_msg.header.stamp
+        elif self.board_type == "charuco":
+            charuco_corners, charuco_ids, marker_corners, marker_ids = self.detector.detectBoard(cv_image)
+            if charuco_ids is not None and len(charuco_ids) >= 4:
+                obj_points = self.board.getChessboardCorners()[charuco_ids.flatten()]
+                success, rvec, tvec = cv2.solvePnP(
+                    objectPoints=obj_points,
+                    imagePoints=charuco_corners,
+                    cameraMatrix=self.intrinsic_mat,
+                    distCoeffs=self.distortion,
+                )
+                if not success:
+                    rvec, tvec = None, None
 
-                pose_stamped.pose.position.x = tvec[0][0]
-                pose_stamped.pose.position.y = tvec[1][0]
-                pose_stamped.pose.position.z = tvec[2][0]
+        if rvec is not None and tvec is not None:
+            pose_stamped = PoseStamped()
+            if self.camera_frame == "":
+                pose_stamped.header.frame_id = self.info_msg.header.frame_id
+            else:
+                pose_stamped.header.frame_id = self.camera_frame
+            pose_stamped.header.stamp = img_msg.header.stamp
 
-                rot_matrix = np.eye(4)
-                rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvec))[0]
-                quat = tf_transformations.quaternion_from_matrix(rot_matrix)
+            pose_stamped.pose.position.x = tvec[0][0]
+            pose_stamped.pose.position.y = tvec[1][0]
+            pose_stamped.pose.position.z = tvec[2][0]
 
-                pose_stamped.pose.orientation.x = quat[0]
-                pose_stamped.pose.orientation.y = quat[1]
-                pose_stamped.pose.orientation.z = quat[2]
-                pose_stamped.pose.orientation.w = quat[3]
+            rot_matrix = np.eye(4)
+            rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvec))[0]
+            quat = tf_transformations.quaternion_from_matrix(rot_matrix)
 
-                self.pose_pub.publish(pose_stamped)
+            pose_stamped.pose.orientation.x = quat[0]
+            pose_stamped.pose.orientation.y = quat[1]
+            pose_stamped.pose.orientation.z = quat[2]
+            pose_stamped.pose.orientation.w = quat[3]
+
+            self.pose_pub.publish(pose_stamped)
 
 
 def main():
