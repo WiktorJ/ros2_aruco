@@ -23,17 +23,17 @@
 
     # --- Aruco Board Parameters ---
     # Number of markers in X and Y directions
-    markers_x: 5
-    markers_y: 7
+    markers_x: 2
+    markers_y: 2
     # Marker side length in meters
-    marker_length: 0.04
+    marker_length: 0.0314
     # Separation between markers in meters
-    marker_separation: 0.01
+    marker_separation: 0.0085
 
     # --- Charuco Board Parameters ---
     # Number of squares in X and Y directions
-    squares_x: 5
-    squares_y: 7
+    squares_x: 2
+    squares_y: 2
     # Charuco square side length in meters
     square_length: 0.04
     # Marker side length in meters (for charuco markers)
