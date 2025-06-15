@@ -289,8 +289,6 @@ class ArucoBoardNode(rclpy.node.Node):
                         cameraMatrix=self.intrinsic_mat,
                         distCoeffs=self.distortion,
                     )
-                    if not success:
-                        rvec, tvec = None, None
 
         elif self.board_type == "charuco":
             charuco_corners, charuco_ids, marker_corners, marker_ids = self.detector.detectBoard(cv_image)
@@ -302,8 +300,6 @@ class ArucoBoardNode(rclpy.node.Node):
                     cameraMatrix=self.intrinsic_mat,
                     distCoeffs=self.distortion,
                 )
-                if not success:
-                    rvec, tvec = None, None
 
         if rvec is not None and tvec is not None:
             pose_stamped = PoseStamped()
