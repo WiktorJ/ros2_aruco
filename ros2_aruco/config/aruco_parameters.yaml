@@ -8,7 +8,7 @@
 /aruco_board_node:
   ros__parameters:
     # Type of board to detect, 'aruco' or 'charuco'
-    board_type: 'aruco'
+    board_type: 'charuco'
 
     # Topics
     image_topic: /camera/camera/color/image_raw
@@ -32,6 +32,6 @@
     # Number of squares in X and Y directions
     squares_x: 2
     squares_y: 2
-    square_length: 0.04
+    square_length: 0.035
     # Marker side length in meters (for charuco markers)
-    charuco_marker_length: 0.02
+    charuco_marker_length: 0.021
