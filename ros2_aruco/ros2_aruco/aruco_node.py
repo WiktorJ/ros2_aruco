@@ -200,7 +200,6 @@ class ArucoNode(rclpy.node.Node):
         if self.info_msg is None:
             self.get_logger().warn("No camera info has been received!")
             return
-        dd
 
         cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="mono8")
         markers = ArucoMarkers()
