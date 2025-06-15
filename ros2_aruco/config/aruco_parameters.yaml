@@ -15,6 +15,9 @@
     camera_info_topic: /camera_info
     camera_frame: "" # empty uses frame from camera_info
 
+    # Publish the board image with markers and pose detected
+    publish_board_image: true
+
     # Dictionary to use
     aruco_dictionary_id: DICT_5X5_250
 

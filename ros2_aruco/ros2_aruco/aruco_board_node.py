@@ -8,6 +8,8 @@ Subscriptions:
 Published Topics:
     /aruco_board_pose (geometry_msgs.msg.PoseStamped)
        Pose of the detected board.
+    /aruco_board_image (sensor_msgs.msg.Image)
+       Image with detected board and pose. Published when publish_board_image is true.
 
 Parameters:
     board_type - type of board to detect, 'aruco' or 'charuco' (default 'aruco')
@@ -17,6 +19,7 @@ Parameters:
     camera_info_topic - camera info topic to subscribe to
                          (default /camera/camera_info)
     camera_frame - camera optical frame to use (default from camera_info)
+    publish_board_image - whether to publish the image with detected markers (default false)
 
     -- Aruco Board Parameters --
     markers_x - number of markers in X direction (default 5)
@@ -87,6 +90,14 @@ class ArucoBoardNode(rclpy.node.Node):
             descriptor=ParameterDescriptor(
                 type=ParameterType.PARAMETER_STRING,
                 description="Camera optical frame to use.",
+            ),
+        )
+        self.declare_parameter(
+            name="publish_board_image",
+            value=False,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_BOOL,
+                description="Publish the board image with markers and pose detected.",
             ),
         )
 
@@ -168,11 +179,15 @@ class ArucoBoardNode(rclpy.node.Node):
         self.camera_frame = (
             self.get_parameter("camera_frame").get_parameter_value().string_value
         )
+        self.publish_board_image = (
+            self.get_parameter("publish_board_image").get_parameter_value().bool_value
+        )
 
         self.get_logger().info(f"Board type: {self.board_type}")
         self.get_logger().info(f"Marker type: {dictionary_id_name}")
         self.get_logger().info(f"Image topic: {image_topic}")
         self.get_logger().info(f"Image info topic: {info_topic}")
+        self.get_logger().info(f"Publish board image: {self.publish_board_image}")
 
         # Make sure we have a valid dictionary id:
         try:
@@ -195,8 +210,12 @@ class ArucoBoardNode(rclpy.node.Node):
 
         # Create board
         if self.board_type == "aruco":
-            markers_x = self.get_parameter("markers_x").get_parameter_value().integer_value
-            markers_y = self.get_parameter("markers_y").get_parameter_value().integer_value
+            markers_x = (
+                self.get_parameter("markers_x").get_parameter_value().integer_value
+            )
+            markers_y = (
+                self.get_parameter("markers_y").get_parameter_value().integer_value
+            )
             marker_length = (
                 self.get_parameter("marker_length").get_parameter_value().double_value
             )
@@ -258,6 +277,8 @@ class ArucoBoardNode(rclpy.node.Node):
 
         # Set up publisher
         self.pose_pub = self.create_publisher(PoseStamped, "aruco_board_pose", 10)
+        if self.publish_board_image:
+            self.board_image_pub = self.create_publisher(Image, "aruco_board_image", 10)
 
         # Set up fields for camera parameters
         self.info_msg = None
@@ -279,16 +300,30 @@ class ArucoBoardNode(rclpy.node.Node):
             return
 
         cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="mono8")
-        
+
+        output_image = None
+        if self.publish_board_image:
+            output_image = cv2.cvtColor(cv_image, cv2.COLOR_GRAY2BGR)
+
         rvec = None
         tvec = None
         success = False
 
         if self.board_type == "aruco":
             corners, marker_ids, rejected = self.aruco_detector.detectMarkers(cv_image)
+
+            if self.publish_board_image:
+                cv2.aruco.drawDetectedMarkers(output_image, corners, marker_ids)
+
             if marker_ids is not None:
-                obj_points, img_points = self.aruco_board.matchImagePoints(corners, marker_ids)
-                if obj_points is not None and img_points is not None and len(obj_points) >= 4:
+                obj_points, img_points = self.aruco_board.matchImagePoints(
+                    corners, marker_ids
+                )
+                if (
+                    obj_points is not None
+                    and img_points is not None
+                    and len(obj_points) >= 4
+                ):
                     success, rvec, tvec = cv2.solvePnP(
                         objectPoints=obj_points,
                         imagePoints=img_points,
@@ -297,9 +332,27 @@ class ArucoBoardNode(rclpy.node.Node):
                     )
 
         elif self.board_type == "charuco":
-            charuco_corners, charuco_ids, marker_corners, marker_ids = self.charuco_detector.detectBoard(cv_image)
+            (
+                charuco_corners,
+                charuco_ids,
+                marker_corners,
+                marker_ids,
+            ) = self.charuco_detector.detectBoard(cv_image)
+
+            if self.publish_board_image:
+                if marker_ids is not None and len(marker_ids) > 0:
+                    cv2.aruco.drawDetectedMarkers(
+                        output_image, marker_corners, marker_ids
+                    )
+                if charuco_ids is not None and len(charuco_ids) > 0:
+                    cv2.aruco.drawDetectedCornersCharuco(
+                        output_image, charuco_corners, charuco_ids
+                    )
+
             if charuco_ids is not None and len(charuco_ids) >= 4:
-                obj_points = self.charuco_board.getChessboardCorners()[charuco_ids.flatten()]
+                obj_points = self.charuco_board.getChessboardCorners()[
+                    charuco_ids.flatten()
+                ]
                 success, rvec, tvec = cv2.solvePnP(
                     objectPoints=obj_points,
                     imagePoints=charuco_corners,
@@ -329,6 +382,36 @@ class ArucoBoardNode(rclpy.node.Node):
             pose_stamped.pose.orientation.w = quat[3]
 
             self.pose_pub.publish(pose_stamped)
+
+            if self.publish_board_image:
+                axis_length = 0.0
+                if self.board_type == "aruco":
+                    marker_length = (
+                        self.get_parameter("marker_length")
+                        .get_parameter_value()
+                        .double_value
+                    )
+                    axis_length = marker_length * 2.0
+                elif self.board_type == "charuco":
+                    square_length = (
+                        self.get_parameter("square_length")
+                        .get_parameter_value()
+                        .double_value
+                    )
+                    axis_length = square_length * 2.0
+                cv2.drawFrameAxes(
+                    output_image,
+                    self.intrinsic_mat,
+                    self.distortion,
+                    rvec,
+                    tvec,
+                    axis_length,
+                )
+
+        if self.publish_board_image:
+            img_msg_out = self.bridge.cv2_to_imgmsg(output_image, encoding="bgr8")
+            img_msg_out.header = img_msg.header
+            self.board_image_pub.publish(img_msg_out)
 
 
 def main():
