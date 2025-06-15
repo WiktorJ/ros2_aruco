@@ -24,14 +24,14 @@ Parameters:
     -- Aruco Board Parameters --
     markers_x - number of markers in X direction (default 5)
     markers_y - number of markers in Y direction (default 7)
-    marker_length - marker side length in meters (default 0.04)
+    aruco_marker_length - marker side length in meters (default 0.04)
     marker_separation - separation between markers in meters (default 0.01)
 
     -- Charuco Board Parameters --
     squares_x - number of squares in X direction (default 5)
     squares_y - number of squares in Y direction (default 7)
     square_length - charuco square side length in meters (default 0.04)
-    marker_length - marker side length in meters for charuco board.
+    charuco_marker_length - marker side length in meters for charuco board.
 
 """
 
@@ -119,11 +119,11 @@ class ArucoBoardNode(rclpy.node.Node):
             ),
         )
         self.declare_parameter(
-            name="marker_length",
+            name="aruco_marker_length",
             value=0.04,
             descriptor=ParameterDescriptor(
                 type=ParameterType.PARAMETER_DOUBLE,
-                description="Marker side length in meters.",
+                description="Marker side length in meters for Aruco board.",
             ),
         )
         self.declare_parameter(
@@ -158,6 +158,14 @@ class ArucoBoardNode(rclpy.node.Node):
             descriptor=ParameterDescriptor(
                 type=ParameterType.PARAMETER_DOUBLE,
                 description="Charuco square side length in meters.",
+            ),
+        )
+        self.declare_parameter(
+            name="charuco_marker_length",
+            value=0.02,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_DOUBLE,
+                description="Marker side length in meters for Charuco board.",
             ),
         )
 
@@ -217,7 +225,9 @@ class ArucoBoardNode(rclpy.node.Node):
                 self.get_parameter("markers_y").get_parameter_value().integer_value
             )
             marker_length = (
-                self.get_parameter("marker_length").get_parameter_value().double_value
+                self.get_parameter("aruco_marker_length")
+                .get_parameter_value()
+                .double_value
             )
             marker_separation = (
                 self.get_parameter("marker_separation")
@@ -248,7 +258,9 @@ class ArucoBoardNode(rclpy.node.Node):
                 self.get_parameter("square_length").get_parameter_value().double_value
             )
             marker_length = (
-                self.get_parameter("marker_length").get_parameter_value().double_value
+                self.get_parameter("charuco_marker_length")
+                .get_parameter_value()
+                .double_value
             )
             self.get_logger().info(
                 f"Charuco board: {squares_x}x{squares_y} squares, "
@@ -387,7 +399,7 @@ class ArucoBoardNode(rclpy.node.Node):
                 axis_length = 0.0
                 if self.board_type == "aruco":
                     marker_length = (
-                        self.get_parameter("marker_length")
+                        self.get_parameter("aruco_marker_length")
                         .get_parameter_value()
                         .double_value
                     )
