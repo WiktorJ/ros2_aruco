@@ -274,9 +274,9 @@ class ArucoBoardNode(rclpy.node.Node):
         corners, marker_ids, rejected = self.aruco_detector.detectMarkers(cv_image)
 
         if marker_ids is not None:
+            ret = 0
             rvec = None
             tvec = None
-            ret = 0
             if self.board_type == "aruco":
                 # Estimate pose of the board
                 ret, rvec, tvec = cv2.aruco.estimatePoseBoard(
@@ -285,8 +285,6 @@ class ArucoBoardNode(rclpy.node.Node):
                     board=self.board,
                     cameraMatrix=self.intrinsic_mat,
                     distCoeffs=self.distortion,
-                    rvec=rvec,
-                    tvec=tvec,
                 )
             elif self.board_type == "charuco":
                 # Interpolate charuco corners
@@ -304,8 +302,6 @@ class ArucoBoardNode(rclpy.node.Node):
                         board=self.board,
                         cameraMatrix=self.intrinsic_mat,
                         distCoeffs=self.distortion,
-                        rvec=rvec,
-                        tvec=tvec,
                     )
 
             if rvec is not None and tvec is not None and ret > 0:
