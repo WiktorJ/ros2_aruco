@@ -188,6 +188,11 @@ class ArucoBoardNode(rclpy.node.Node):
         self.aruco_dictionary = cv2.aruco.getPredefinedDictionary(dictionary_id)
         self.aruco_parameters = cv2.aruco.DetectorParameters()
 
+        self.aruco_board = None
+        self.charuco_board = None
+        self.aruco_detector = None
+        self.charuco_detector = None
+
         # Create board
         if self.board_type == "aruco":
             markers_x = self.get_parameter("markers_x").get_parameter_value().integer_value
@@ -204,13 +209,13 @@ class ArucoBoardNode(rclpy.node.Node):
                 f"Aruco board: {markers_x}x{markers_y} markers, "
                 f"length={marker_length}, separation={marker_separation}"
             )
-            self.board = cv2.aruco.GridBoard(
+            self.aruco_board = cv2.aruco.GridBoard(
                 size=(markers_x, markers_y),
                 markerLength=marker_length,
                 markerSeparation=marker_separation,
                 dictionary=self.aruco_dictionary,
             )
-            self.detector = cv2.aruco.ArucoDetector(
+            self.aruco_detector = cv2.aruco.ArucoDetector(
                 dictionary=self.aruco_dictionary, detectorParams=self.aruco_parameters
             )
         elif self.board_type == "charuco":
@@ -230,14 +235,14 @@ class ArucoBoardNode(rclpy.node.Node):
                 f"Charuco board: {squares_x}x{squares_y} squares, "
                 f"square_length={square_length}, marker_length={marker_length}"
             )
-            self.board = cv2.aruco.CharucoBoard(
+            self.charuco_board = cv2.aruco.CharucoBoard(
                 size=(squares_x, squares_y),
                 squareLength=square_length,
                 markerLength=marker_length,
                 dictionary=self.aruco_dictionary,
             )
-            self.detector = cv2.aruco.CharucoDetector(
-                board=self.board, detectorParams=self.aruco_parameters
+            self.charuco_detector = cv2.aruco.CharucoDetector(
+                board=self.charuco_board, detectorParams=self.aruco_parameters
             )
         else:
             self.get_logger().error(f"Unknown board type: {self.board_type}")
@@ -277,11 +282,12 @@ class ArucoBoardNode(rclpy.node.Node):
         
         rvec = None
         tvec = None
+        success = False
 
         if self.board_type == "aruco":
-            corners, marker_ids, rejected = self.detector.detectMarkers(cv_image)
+            corners, marker_ids, rejected = self.aruco_detector.detectMarkers(cv_image)
             if marker_ids is not None:
-                obj_points, img_points = self.board.matchImagePoints(corners, marker_ids)
+                obj_points, img_points = self.aruco_board.matchImagePoints(corners, marker_ids)
                 if obj_points is not None and img_points is not None and len(obj_points) >= 4:
                     success, rvec, tvec = cv2.solvePnP(
                         objectPoints=obj_points,
@@ -291,9 +297,9 @@ class ArucoBoardNode(rclpy.node.Node):
                     )
 
         elif self.board_type == "charuco":
-            charuco_corners, charuco_ids, marker_corners, marker_ids = self.detector.detectBoard(cv_image)
+            charuco_corners, charuco_ids, marker_corners, marker_ids = self.charuco_detector.detectBoard(cv_image)
             if charuco_ids is not None and len(charuco_ids) >= 4:
-                obj_points = self.board.getChessboardCorners()[charuco_ids.flatten()]
+                obj_points = self.charuco_board.getChessboardCorners()[charuco_ids.flatten()]
                 success, rvec, tvec = cv2.solvePnP(
                     objectPoints=obj_points,
                     imagePoints=charuco_corners,
@@ -301,7 +307,7 @@ class ArucoBoardNode(rclpy.node.Node):
                     distCoeffs=self.distortion,
                 )
 
-        if rvec is not None and tvec is not None:
+        if success:
             pose_stamped = PoseStamped()
             if self.camera_frame == "":
                 pose_stamped.header.frame_id = self.info_msg.header.frame_id
